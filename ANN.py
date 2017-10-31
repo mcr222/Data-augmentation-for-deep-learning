@@ -1,5 +1,5 @@
-import tensorflow as tf
 import Data_augmentation as da
+import tensorflow as tf
 
 
 '''
@@ -14,5 +14,3 @@ Trains an ANN with tensorflow
 def trainANN(transformations, dataset, image_number, ANN_parameters):
     print "training"
 
-    
-    
