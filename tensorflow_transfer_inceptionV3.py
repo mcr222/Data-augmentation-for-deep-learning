@@ -1,112 +1,130 @@
-'''This script goes along the blog post
-"Building powerful image classification models using very little data"
-from blog.keras.io.
-It uses data that can be downloaded at:
-https://www.kaggle.com/c/dogs-vs-cats/data
-In our setup, we:
-- created a data/ folder
-- created train/ and validation/ subfolders inside data/
-- created cats/ and dogs/ subfolders inside train/ and validation/
-- put the cat pictures index 0-999 in data/train/cats
-- put the cat pictures index 1000-1400 in data/validation/cats
-- put the dogs pictures index 12500-13499 in data/train/dogs
-- put the dog pictures index 13500-13900 in data/validation/dogs
-So that we have 1000 training examples for each class, and 400 validation examples for each class.
-In summary, this is our directory structure:
-```
-data/
-    train/
-        dogs/
-            dog001.jpg
-            dog002.jpg
-            ...
-        cats/
-            cat001.jpg
-            cat002.jpg
-            ...
-    validation/
-        dogs/
-            dog001.jpg
-            dog002.jpg
-            ...
-        cats/
-            cat001.jpg
-            cat002.jpg
-            ...
-```
-'''
 import numpy as np
 from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
+from keras.models import Sequential, Model
 from keras.layers import Dropout, Flatten, Dense
 from keras import applications
+import os
+import ANN
 
-# dimensions of our images.
-img_width, img_height = 150, 150
+datagen = ImageDataGenerator(rescale=1. / 255)
 
-top_model_weights_path = 'bottleneck_fc_model.h5'
-train_data_dir = 'dataset1/train'
-validation_data_dir = 'dataset1/validation'
-nb_train_samples = 208
-nb_validation_samples = 208
-epochs = 5
-batch_size = 16
+def countSamples(path):
+    file_count = 0
+    for root, dirs, files in os.walk(path):
+        file_count += len(files)
+    return file_count 
 
-
-def save_bottlebeck_features():
-    datagen = ImageDataGenerator(rescale=1. / 255)
-
-    # build the VGG16 network
-    model = applications.VGG16(include_top=False, weights='imagenet')
-
+# this is a generator that will read pictures found in
+# subfolders of 'data/train', and indefinitely generate
+# batches of augmented image data
+def getGenerator(data_dir):
+    #cannot shuffle to have the same order when training
+    #top layer
     generator = datagen.flow_from_directory(
-        train_data_dir,
-        target_size=(img_width, img_height),
-        batch_size=batch_size,
+        data_dir,
+        target_size=(ANN.img_width, ANN.img_height),
+        batch_size=ANN.batch_size,
         class_mode=None,
         shuffle=False)
+    return generator
+
+def get_base_model():
+    model = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=ANN.input_shape)
+    model.trainable = False
+    return model
+
+def bottleneck_path(path):
+    return 'bottleneck_features_'+ path.replace("/","_").replace(".","_") + '.npy'
+    
+#must do this with train and validation path
+def save_bottlebeck_features(path,nb_samples):
+    if(os.path.isfile(bottleneck_path(path))):
+        print "Features already computed for InceptionV3"
+        return
+    print "Saving features after InceptionV3 for: " + path
+    # build the InceptionV3 network
+    model = get_base_model()
+
     bottleneck_features_train = model.predict_generator(
-        generator, nb_train_samples // batch_size)
-    np.save(open('bottleneck_features_train.npy', 'w'),
+        getGenerator(path), nb_samples // ANN.batch_size)
+    np.save(open(bottleneck_path(path), 'w'),
             bottleneck_features_train)
+    
+    print "Features saved"
 
-    generator = datagen.flow_from_directory(
-        validation_data_dir,
-        target_size=(img_width, img_height),
-        batch_size=batch_size,
-        class_mode=None,
-        shuffle=False)
-    bottleneck_features_validation = model.predict_generator(
-        generator, nb_validation_samples // batch_size)
-    np.save(open('bottleneck_features_validation.npy', 'w'),
-            bottleneck_features_validation)
+def get_top_model(shape):
+    top_model = Sequential()
+    top_model.add(Flatten(input_shape=shape))
+    top_model.add(Dense(256, activation='relu'))
+    top_model.add(Dropout(0.5))
+    top_model.add(Dense(1, activation='sigmoid'))
+    
+#     x = Flatten()(base_model.output)
+#     x = Dense(4096, activation='relu')(x)
+#     x = Dropout(0.5)(x)
+#     x = BatchNormalization()(x)
+#     predictions = Dense(num_classes, activation = 'softmax')(x)
+    return top_model
+
+def getWeightsPath(train_path):
+    return 'transferinception_weights_'+ train_path.replace("/","_").replace(".","_") + '.h5'
 
 
-def train_top_model():
-    train_data = np.load(open('bottleneck_features_train.npy'))
+'''
+ validation_data: Data on which to evaluate
+                the loss and any model metrics
+                at the end of each epoch. The model will not
+                be trained on this data.
+'''
+def modelTrain(train_path,validation_path):
+    nb_train_samples = countSamples(train_path)
+    nb_validation_samples = countSamples(validation_path)
+    
+    save_bottlebeck_features(train_path, nb_train_samples)
+    save_bottlebeck_features(validation_path, nb_validation_samples)
+    
+    train_data = np.load(open(bottleneck_path(train_path)))
     train_labels = np.array(
         [0] * (nb_train_samples / 2) + [1] * (nb_train_samples / 2))
 
-    validation_data = np.load(open('bottleneck_features_validation.npy'))
+    validation_data = np.load(open(bottleneck_path(validation_path)))
     validation_labels = np.array(
         [0] * (nb_validation_samples / 2) + [1] * (nb_validation_samples / 2))
 
-    model = Sequential()
-    model.add(Flatten(input_shape=train_data.shape[1:]))
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(1, activation='sigmoid'))
-
+    model = get_top_model(train_data.shape[1:])
+    
     model.compile(optimizer='rmsprop',
                   loss='binary_crossentropy', metrics=['accuracy'])
 
-#training sample number and validation sample number must be whole times of the batch_size 16.
+    #training sample number and validation sample number must be 
+    #whole times of the batch_size 16.
     model.fit(train_data, train_labels,
-              epochs=epochs,
-              batch_size=batch_size,
+              epochs=ANN.epochs,
+              batch_size=ANN.batch_size,
               validation_data=(validation_data, validation_labels))
-    model.save_weights(top_model_weights_path)
+    
+    model.save_weights(getWeightsPath(train_path))
 
+def trainedModel(train_path):   
+    # build the InceptionV3 network
+    # weights will be downoaded the first time this executes
+    base_model = get_base_model()
+    #base_model.summary()
+    # build a classifier model to put on top of the convolutional model
+    top_model = get_top_model(base_model.output_shape[1:])
+    top_model.load_weights(getWeightsPath(train_path))
+    #top_model.summary()
+     #create graph of your new model
+    head_model = Model(input= base_model.input, output= top_model(base_model.output))
+    
+    # add the model on top of the convolutional base
+#     model.add(top_model)
+    return head_model
 
-save_bottlebeck_features()
-train_top_model()
+#IMPORTANT train path should be unique for all datasets!!!!!
+#IMPORTANTIMPORTANT
+#IMPORTANTIMPORTANT
+train_path = "dataset1/train"
+modelTrain(train_path, "dataset1/validation")
+trainedModel(train_path).summary()
+
