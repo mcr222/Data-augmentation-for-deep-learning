@@ -2,78 +2,96 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Activation, Dropout, Flatten, Dense
-from keras import backend as K
+import tensorflow_interface
+import os
+import ANN
 
 
-# dimensions of our images.
-img_width, img_height = 150, 150
-
-train_data_dir = 'dataset1/train'
-validation_data_dir = 'dataset1/validation'
-nb_train_samples = 100
-nb_validation_samples = 100
-epochs = 10
-batch_size = 16
-
-if K.image_data_format() == 'channels_first':
-    input_shape = (3, img_width, img_height)
-else:
-    input_shape = (img_width, img_height, 3)
-
-model = Sequential()
-model.add(Conv2D(32, (3, 3), input_shape=input_shape))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-
-model.add(Conv2D(32, (3, 3)))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-
-model.add(Conv2D(64, (3, 3)))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-
-model.add(Flatten())
-model.add(Dense(64))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(1))
-model.add(Activation('sigmoid'))
-
-model.compile(loss='binary_crossentropy',
-              optimizer='rmsprop',
-              metrics=['accuracy'])
-
-# this is the augmentation configuration we will use for training
-train_datagen = ImageDataGenerator(
-    rescale=1. / 255,
-    shear_range=0.2,
-    zoom_range=0.2,
-    horizontal_flip=True)
+'''
+rescale is a value by which we will multiply the data before any other processing. 
+Our original images consist in RGB coefficients in the 0-255, but such values would 
+be too high for our models to process (given a typical learning rate), so we target 
+values between 0 and 1 instead by scaling with a 1/255. factor.
+'''
+#WARNING!! rescaling should be the same for train and test
 #train_datagen = ImageDataGenerator()
+datagen = ImageDataGenerator(rescale=1. / 255)
+
+def countSamples(path):
+    file_count = 0
+    for root, dirs, files in os.walk(path):
+        file_count += len(files)
+    return file_count 
+
+# this is a generator that will read pictures found in
+# subfolders of 'data/train', and indefinitely generate
+# batches of augmented image data
+def getGenerator(data_dir = 'dataset1/train'):
+    generator = datagen.flow_from_directory(
+        data_dir,
+        target_size=(ANN.img_width, ANN.img_height),
+        batch_size=ANN.batch_size,
+        class_mode='binary')
+    return generator
+
+def create_model(input_shape):
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3), input_shape=input_shape))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    
+    model.add(Conv2D(32, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    
+    model.add(Conv2D(64, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    
+    model.add(Flatten())
+    model.add(Dense(64))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+
+    model.compile(loss='binary_crossentropy',
+                  optimizer='rmsprop',
+                  metrics=['accuracy'])
+    
+    return model
 
 
-# this is the augmentation configuration we will use for testing:
-# only rescaling
-test_datagen = ImageDataGenerator(rescale=1. / 255)
+def getWeightsPath(train_path):
+    return '3layer_weights_'+ train_path.replace("/","_").replace(".","_") + '.h5'
 
-train_generator = train_datagen.flow_from_directory(
-    train_data_dir,
-    target_size=(img_width, img_height),
-    batch_size=batch_size,
-    class_mode='binary')
+def modelTrain(train_path, validation_path):
+    #IMPORTANT: model only will train with batches,
+    #thus training images not fitting exactly into
+    #a batch size won't be used
+    model = create_model(ANN.input_shape)
+    train_generator = getGenerator(train_path)
+    validation_generator = getGenerator(validation_path)
+    nb_train_samples =  countSamples(train_path)
+    nb_validation_samples = countSamples(validation_path)
+    
+    model.fit_generator(
+        train_generator,
+        steps_per_epoch=nb_train_samples // ANN.batch_size,
+        epochs=ANN.epochs,
+        validation_data=validation_generator,
+        validation_steps=nb_validation_samples // ANN.batch_size)
 
-validation_generator = test_datagen.flow_from_directory(
-    validation_data_dir,
-    target_size=(img_width, img_height),
-    batch_size=batch_size,
-    class_mode='binary')
+    model.save_weights(getWeightsPath(train_path))
 
-model.fit_generator(
-    train_generator,
-    steps_per_epoch=nb_train_samples // batch_size,
-    epochs=epochs,
-    validation_data=validation_generator,
-    validation_steps=nb_validation_samples // batch_size)
 
-model.save_weights('first_try.h5')
+def trainedModel(train_path):   
+    # build the VGG16 network
+    model = create_model(ANN.input_shape)
+    model.load_weights(getWeightsPath(train_path))
+    return model
+
+train_path = "dataset1/train"
+modelTrain(train_path, "dataset1/validation")
+trainedModel(train_path).summary()
+
