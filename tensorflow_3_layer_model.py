@@ -4,7 +4,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Activation, Dropout, Flatten, Dense
 import tensorflow_interface
 import os
-import ANN
+import ANN_constants as ANN
 
 
 '''
@@ -62,10 +62,10 @@ def create_model(input_shape):
     return model
 
 
-def getWeightsPath(train_path):
-    return '3layer_weights_'+ train_path.replace("/","_").replace(".","_") + '.h5'
+def getWeightsPath(path):
+    return path + '/3layer_weights.h5'
 
-def modelTrain(train_path, validation_path):
+def modelTrain(path, train_path, validation_path):
     #IMPORTANT: model only will train with batches,
     #thus training images not fitting exactly into
     #a batch size won't be used
@@ -75,23 +75,22 @@ def modelTrain(train_path, validation_path):
     nb_train_samples =  countSamples(train_path)
     nb_validation_samples = countSamples(validation_path)
     
-    model.fit_generator(
+    history = model.fit_generator(
         train_generator,
         steps_per_epoch=nb_train_samples // ANN.batch_size,
         epochs=ANN.epochs,
         validation_data=validation_generator,
         validation_steps=nb_validation_samples // ANN.batch_size)
 
-    model.save_weights(getWeightsPath(train_path))
+    model.save_weights(getWeightsPath(path))
+    return history
 
 
-def trainedModel(train_path):   
+def trainedModel(path):   
     # build the VGG16 network
     model = create_model(ANN.input_shape)
-    model.load_weights(getWeightsPath(train_path))
+    model.load_weights(getWeightsPath(path))
     return model
 
-train_path = "dataset1/train"
-modelTrain(train_path, "dataset1/validation")
-trainedModel(train_path).summary()
+
 
