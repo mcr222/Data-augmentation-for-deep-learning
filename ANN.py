@@ -17,12 +17,14 @@ def trainANN(model="inception", main_path = "dataset1"):
     train_path = main_path + "/train"
     validation_path = main_path + "/validation"
     if(model=="inception"):
-        history = inception.modelTrain(main_path, train_path, validation_path)
+        hist = inception.modelTrain(main_path, train_path, validation_path)
     else:
-        history = threelayer.modelTrain(main_path, train_path, validation_path)
+        hist = threelayer.modelTrain(main_path, train_path, validation_path)
         
     print "Printing training history"
-    print history
+    print hist
+    print "List of history for accuracy:"
+    print hist.history['val_acc']
     #trainedModel(main_path).summary()
     
 trainANN()
