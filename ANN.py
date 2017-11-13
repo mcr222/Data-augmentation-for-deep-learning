@@ -1,14 +1,5 @@
-from keras import backend as K
-
-
-# dimensions of our images.
-img_width, img_height = 150, 150
-epochs = 2
-batch_size = 16
-input_shape = (img_width, img_height, 3)
-
-if K.image_data_format() == 'channels_first':
-    input_shape = (3, img_width, img_height)
+import tensorflow_transfer_inceptionV3 as inception
+import tensorflow_3_layer_model as threelayers
 
 '''
 Trains an ANN with tensorflow
@@ -19,6 +10,22 @@ Trains an ANN with tensorflow
         to do the test with the other images
     ANN_parameters -> tuple with all parameters for the ANN
 '''
-def trainANN(transformations, dataset, image_number, ANN_parameters):
-    print "training"
+def trainANN(model="inception", main_path = "dataset1"):
+    #IMPORTANT train path should be unique for all datasets!!!!!
+    #IMPORTANTIMPORTANT
+    #IMPORTANTIMPORTANT
+    train_path = main_path + "/train"
+    validation_path = main_path + "/validation"
+    if(model=="inception"):
+        history = inception.modelTrain(main_path, train_path, validation_path)
+    else:
+        history = threelayer.modelTrain(main_path, train_path, validation_path)
+        
+    print "Printing training history"
+    print history
+    #trainedModel(main_path).summary()
+    
+trainANN()
+    
+    
 

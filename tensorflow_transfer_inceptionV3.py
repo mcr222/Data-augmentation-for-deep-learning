@@ -4,7 +4,7 @@ from keras.models import Sequential, Model
 from keras.layers import Dropout, Flatten, Dense
 from keras import applications
 import os
-import ANN
+import ANN_constants as ANN
 
 datagen = ImageDataGenerator(rescale=1. / 255)
 
@@ -33,21 +33,21 @@ def get_base_model():
     model.trainable = False
     return model
 
-def bottleneck_path(path):
-    return 'bottleneck_features_'+ path.replace("/","_").replace(".","_") + '.npy'
+def bottleneck_path(path,image_path):
+    return path + '/bottleneck_features_'+image_path.replace("/","_").replace(".","_")+'.npy'
     
 #must do this with train and validation path
-def save_bottlebeck_features(path,nb_samples):
-    if(os.path.isfile(bottleneck_path(path))):
+def save_bottlebeck_features(path, image_path, nb_samples):
+    if(os.path.isfile(bottleneck_path(path,image_path))):
         print "Features already computed for InceptionV3"
         return
-    print "Saving features after InceptionV3 for: " + path
+    print "Saving features after InceptionV3 for: " + image_path
     # build the InceptionV3 network
     model = get_base_model()
 
     bottleneck_features_train = model.predict_generator(
-        getGenerator(path), nb_samples // ANN.batch_size)
-    np.save(open(bottleneck_path(path), 'w'),
+        getGenerator(image_path), nb_samples // ANN.batch_size)
+    np.save(open(bottleneck_path(path,image_path), 'w'),
             bottleneck_features_train)
     
     print "Features saved"
@@ -66,8 +66,8 @@ def get_top_model(shape):
 #     predictions = Dense(num_classes, activation = 'softmax')(x)
     return top_model
 
-def getWeightsPath(train_path):
-    return 'transferinception_weights_'+ train_path.replace("/","_").replace(".","_") + '.h5'
+def getWeightsPath(path):
+    return path + '/transferinception_weights.h5'
 
 
 '''
@@ -76,18 +76,18 @@ def getWeightsPath(train_path):
                 at the end of each epoch. The model will not
                 be trained on this data.
 '''
-def modelTrain(train_path,validation_path):
+def modelTrain(path, train_path, validation_path):
     nb_train_samples = countSamples(train_path)
     nb_validation_samples = countSamples(validation_path)
     
-    save_bottlebeck_features(train_path, nb_train_samples)
-    save_bottlebeck_features(validation_path, nb_validation_samples)
+    save_bottlebeck_features(path, train_path, nb_train_samples)
+    save_bottlebeck_features(path, validation_path, nb_validation_samples)
     
-    train_data = np.load(open(bottleneck_path(train_path)))
+    train_data = np.load(open(bottleneck_path(path, train_path)))
     train_labels = np.array(
         [0] * (nb_train_samples / 2) + [1] * (nb_train_samples / 2))
 
-    validation_data = np.load(open(bottleneck_path(validation_path)))
+    validation_data = np.load(open(bottleneck_path(path, validation_path)))
     validation_labels = np.array(
         [0] * (nb_validation_samples / 2) + [1] * (nb_validation_samples / 2))
 
@@ -98,21 +98,22 @@ def modelTrain(train_path,validation_path):
 
     #training sample number and validation sample number must be 
     #whole times of the batch_size 16.
-    model.fit(train_data, train_labels,
+    history = model.fit(train_data, train_labels,
               epochs=ANN.epochs,
               batch_size=ANN.batch_size,
               validation_data=(validation_data, validation_labels))
     
-    model.save_weights(getWeightsPath(train_path))
+    model.save_weights(getWeightsPath(path))
+    return history
 
-def trainedModel(train_path):   
+def trainedModel(path):   
     # build the InceptionV3 network
     # weights will be downoaded the first time this executes
     base_model = get_base_model()
     #base_model.summary()
     # build a classifier model to put on top of the convolutional model
     top_model = get_top_model(base_model.output_shape[1:])
-    top_model.load_weights(getWeightsPath(train_path))
+    top_model.load_weights(getWeightsPath(path))
     #top_model.summary()
      #create graph of your new model
     head_model = Model(input= base_model.input, output= top_model(base_model.output))
@@ -121,10 +122,4 @@ def trainedModel(train_path):
 #     model.add(top_model)
     return head_model
 
-#IMPORTANT train path should be unique for all datasets!!!!!
-#IMPORTANTIMPORTANT
-#IMPORTANTIMPORTANT
-train_path = "dataset1/train"
-modelTrain(train_path, "dataset1/validation")
-trainedModel(train_path).summary()
 
