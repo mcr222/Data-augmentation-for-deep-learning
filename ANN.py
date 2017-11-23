@@ -1,33 +1,52 @@
 import tensorflow_transfer_inceptionV3 as inception
 import tensorflow_3_layer_model as threelayers
+import os
+import sys
 
 '''
 Trains an ANN with tensorflow
-    transformations -> list of numbers of the transformed sets of images to be used
-    dataset -> which dataset to train with
-    image_number -> number of images randomly selected from the original dataset to use 
-        for training (rest are for testing) need to save which images are use for training 
-        to do the test with the other images
-    ANN_parameters -> tuple with all parameters for the ANN
+    
 '''
+from matplotlib.font_manager import path
 def trainANN(model="inception", main_path = "dataset1"):
-    #IMPORTANT train path should be unique for all datasets!!!!!
-    #IMPORTANTIMPORTANT
-    #IMPORTANTIMPORTANT
-    train_path = main_path + "/train"
-    validation_path = main_path + "/validation"
+    print "Training model " + model + " on dataset: " + main_path
+    result_path = main_path+"/result_"+model+".txt"
+    if(os.path.isfile(result_path)):
+        print "Model already trained in this dataset"
+        return
+    
+    train_path = main_path + "/training"
+    validation_path = main_path + "/test"
     if(model=="inception"):
         hist = inception.modelTrain(main_path, train_path, validation_path)
+        #inception.trainedModel(main_path).summary()
     else:
-        hist = threelayer.modelTrain(main_path, train_path, validation_path)
+        hist = threelayers.modelTrain(main_path, train_path, validation_path)
+        #threelayers.trainedModel(main_path).summary()
         
     print "Printing training history"
     print hist
-    print "List of history for accuracy:"
+    print "List of history for validation accuracy in path " + main_path
     print hist.history['val_acc']
-    #trainedModel(main_path).summary()
     
-trainANN()
-    
+    newstr = ''.join([''+ str(i)+', ' for i in hist.history['val_acc']])
+    print newstr
+    with open(result_path,"w") as f:
+        f.write(newstr)
+
+#TODO: find . -name "*init*" -delete to remove init files created by system when generating images
+root_path = "data/"
+for dataset_path in os.listdir(root_path):
+    try:
+        trainANN("inception",root_path+dataset_path)
+    except Exception as e:
+        print "Inception complains (probably batch size)"
+        print e
+        
+    try:
+        trainANN("threelayers",root_path+dataset_path)
+    except Exception as e:
+        print "Three layers complains (probably batch size)"
+        print e
     
 

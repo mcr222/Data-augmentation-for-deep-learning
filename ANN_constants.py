@@ -2,8 +2,8 @@ from keras import backend as K
 
 # dimensions of our images.
 img_width, img_height = 150, 150
-epochs = 2
-batch_size = 16
+epochs = 50
+batch_size = 10
 input_shape = (img_width, img_height, 3)
 
 if K.image_data_format() == 'channels_first':
