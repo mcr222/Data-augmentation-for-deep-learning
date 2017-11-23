@@ -26,7 +26,7 @@ def trainANN(model="inception", main_path = "dataset1"):
         
     print "Printing training history"
     print hist
-    print "List of history for validation accuracy in path " + main_path
+    print "List of history for validation accuracy in path " + main_path + " on model " + model
     print hist.history['val_acc']
     
     newstr = ''.join([''+ str(i)+', ' for i in hist.history['val_acc']])
