@@ -101,7 +101,7 @@ def modelTrain(path, train_path, validation_path):
     history = model.fit(train_data, train_labels,
               epochs=ANN.epochs,
               batch_size=ANN.batch_size,
-              validation_data=(validation_data, validation_labels))
+              validation_data=(validation_data, validation_labels), verbose=0)
     
     model.save_weights(getWeightsPath(path))
     return history

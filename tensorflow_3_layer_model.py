@@ -80,7 +80,7 @@ def modelTrain(path, train_path, validation_path):
         steps_per_epoch=nb_train_samples // ANN.batch_size,
         epochs=ANN.epochs,
         validation_data=validation_generator,
-        validation_steps=nb_validation_samples // ANN.batch_size)
+        validation_steps=nb_validation_samples // ANN.batch_size, verbose=0)
 
     model.save_weights(getWeightsPath(path))
     return history
