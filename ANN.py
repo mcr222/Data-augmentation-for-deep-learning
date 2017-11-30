@@ -35,18 +35,18 @@ def trainANN(model="inception", main_path = "dataset1"):
         f.write(newstr)
 
 #TODO: find . -name "*init*" -delete to remove init files created by system when generating images
-root_path = "data/"
+root_path = "ex_dataset/"
 for dataset_path in os.listdir(root_path):
     try:
         trainANN("inception",root_path+dataset_path)
     except Exception as e:
-        print "Inception complains (probably batch size)"
+        print "ERROR!!!! Inception complains (probably batch size)"
         print e
         
     try:
         trainANN("threelayers",root_path+dataset_path)
     except Exception as e:
-        print "Three layers complains (probably batch size)"
+        print "ERROR!!!! Three layers complains (probably batch size)"
         print e
     
 
