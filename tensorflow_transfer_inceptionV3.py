@@ -17,13 +17,13 @@ def countSamples(path):
 # this is a generator that will read pictures found in
 # subfolders of 'data/train', and indefinitely generate
 # batches of augmented image data
-def getGenerator(data_dir):
+def getGenerator(data_dir, batch_size):
     #cannot shuffle to have the same order when training
     #top layer
     generator = datagen.flow_from_directory(
         data_dir,
         target_size=(ANN.img_width, ANN.img_height),
-        batch_size=ANN.batch_size,
+        batch_size=batch_size,
         class_mode=None,
         shuffle=False)
     return generator
@@ -34,10 +34,10 @@ def get_base_model():
     return model
 
 def bottleneck_path(path,image_path):
-    return path + '/bottleneck_features_'+image_path.replace("/","_").replace(".","_")+'.npy'
+    return path + '/bottleneck_features_'+image_path.replace("/","_").replace(".","_")+'10'#+'.npy'
     
 #must do this with train and validation path
-def save_bottlebeck_features(path, image_path, nb_samples):
+def save_bottlebeck_features(path, image_path, nb_samples, validation=False):
     if(os.path.isfile(bottleneck_path(path,image_path))):
         print "Features already computed for InceptionV3"
         return
@@ -45,10 +45,14 @@ def save_bottlebeck_features(path, image_path, nb_samples):
     # build the InceptionV3 network
     model = get_base_model()
 
+    batch_size = ANN.batch_size
+    if(validation):
+        batch_size=1
     bottleneck_features_train = model.predict_generator(
-        getGenerator(image_path), nb_samples // ANN.batch_size)
-    np.save(open(bottleneck_path(path,image_path), 'w'),
-            bottleneck_features_train)
+        getGenerator(image_path, batch_size), nb_samples // batch_size)
+    
+    with open(bottleneck_path(path,image_path), 'wb') as f:
+        np.save(f, bottleneck_features_train)
     
     print "Features saved"
 
@@ -67,7 +71,7 @@ def get_top_model(shape):
     return top_model
 
 def getWeightsPath(path):
-    return path + '/transferinception_weights.h5'
+    return path + '/transferinception_weights10.h5'
 
 
 '''
@@ -79,31 +83,34 @@ def getWeightsPath(path):
 def modelTrain(path, train_path, validation_path):
     nb_train_samples = countSamples(train_path)
     nb_validation_samples = countSamples(validation_path)
+#     print nb_train_samples
+#     print nb_validation_samples
     
     save_bottlebeck_features(path, train_path, nb_train_samples)
-    save_bottlebeck_features(path, validation_path, nb_validation_samples)
+    save_bottlebeck_features(path, validation_path, nb_validation_samples,True)
     
-    train_data = np.load(open(bottleneck_path(path, train_path)))
-    train_labels = np.array(
-        [0] * (nb_train_samples / 2) + [1] * (nb_train_samples / 2))
-
-    validation_data = np.load(open(bottleneck_path(path, validation_path)))
-    validation_labels = np.array(
-        [0] * (nb_validation_samples / 2) + [1] * (nb_validation_samples / 2))
-
-    model = get_top_model(train_data.shape[1:])
+    with open(bottleneck_path(path, train_path),'rb') as  train_file, open(bottleneck_path(path, validation_path),'rb') as test_file:
+        train_data = np.load(train_file)
+        train_labels = np.array(
+            [0] * (nb_train_samples / 2) + [1] * (nb_train_samples / 2))
     
-    model.compile(optimizer='rmsprop',
-                  loss='binary_crossentropy', metrics=['accuracy'])
-
-    #training sample number and validation sample number must be 
-    #whole times of the batch_size 16.
-    history = model.fit(train_data, train_labels,
-              epochs=ANN.epochs,
-              batch_size=ANN.batch_size,
-              validation_data=(validation_data, validation_labels), verbose=0)
+        validation_data = np.load(test_file)
+        validation_labels = np.array(
+            [0] * (nb_validation_samples / 2) + [1] * (nb_validation_samples / 2))
     
-    model.save_weights(getWeightsPath(path))
+        model = get_top_model(train_data.shape[1:])
+        
+        model.compile(optimizer='rmsprop',
+                      loss='binary_crossentropy', metrics=['accuracy'])
+    
+        #training sample number and validation sample number must be 
+        #whole times of the batch_size 16.
+        history = model.fit(train_data, train_labels,
+                  epochs=ANN.epochs,
+                  batch_size=ANN.batch_size,
+                  validation_data=(validation_data, validation_labels), verbose=0)
+        
+        model.save_weights(getWeightsPath(path))
     return history
 
 def trainedModel(path):   
@@ -122,4 +129,7 @@ def trainedModel(path):
 #     model.add(top_model)
     return head_model
 
-
+# mod = get_base_model()
+# mod = get_top_model(mod.output_shape[1:])
+# print(mod.input_shape)
+# mod.summary()
