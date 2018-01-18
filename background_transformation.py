@@ -11,7 +11,7 @@ size=(120,120)
 which_background = "fake"
 which_background = "real"
 
-background_path = "backgrounds/" + which_background + "/"
+background_path = "background/" + which_background + "/"
 
 output_folder = "pngs/dataset"+dataset+"_" + which_background +"/"
 try:

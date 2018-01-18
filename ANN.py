@@ -7,7 +7,7 @@ import sys
 Trains an ANN with tensorflow
     
 '''
-from matplotlib.font_manager import path
+
 def trainANN(model="inception", main_path = "dataset1"):
     print "Training model " + model + " on dataset: " + main_path
     result_path = main_path+"/result_"+model+".txt"
@@ -28,6 +28,7 @@ def trainANN(model="inception", main_path = "dataset1"):
     print hist
     print "List of history for validation accuracy in path " + main_path + " on model " + model
     print hist.history['val_acc']
+    print hist.history['acc']
     
     newstr = ''.join([''+ str(i)+', ' for i in hist.history['val_acc']])
     print newstr
@@ -40,13 +41,13 @@ for dataset_path in os.listdir(root_path):
     try:
         trainANN("inception",root_path+dataset_path)
     except Exception as e:
-        print "ERROR!!!! Inception complains (probably batch size)"
+        print "ERROR!!!!"
         print e
         
     try:
         trainANN("threelayers",root_path+dataset_path)
     except Exception as e:
-        print "ERROR!!!! Three layers complains (probably batch size)"
+        print "ERROR!!!!"
         print e
     
 
